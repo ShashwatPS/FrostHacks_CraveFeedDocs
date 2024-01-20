@@ -1,0 +1,969 @@
+import json
+
+import streamlit
+import streamlit_lottie
+import streamlit as st
+from streamlit_option_menu import option_menu
+from streamlit_agraph import agraph, Node, Edge, Config
+
+def load_lottie_file(file_path):
+    with open(file_path, "r") as f:
+        return json.load(f)
+
+# Backend -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+def backend():
+    st.title("tRPC Usage")
+    st.image("https://lh6.googleusercontent.com/rkC09qcMxltA0mIQG3chqO34rNJTsGSPmD0nx5A-BO8wFkPJDQXu9bh9TimeaN2awIc_NN6wPYtQLPiGunTz6MSsRw53J6b444dMKsEMj_-xuDPO7CtFpH8AVusTWsSkBgkJsbmnZdH1NS6rfv1icLZE_o_V8NKUCxWv4zNQWcLlqVM8tRd5l92LLg", use_column_width=True)
+    st.write("tRPC is for full-stack TypeScript developers. It makes it easy to write endpoints that you can safely use in both the front and backend of your app. Type errors with your API contracts will be caught at build time, reducing the surface for bugs in your application at runtime.")
+    st.header("Contexts")
+    st.write('In tRPC (TypeScript RPC), "context" typically refers to the context object that is available during the execution of a tRPC operation. This context object contains information about the current request, and it can be used to store and access data that is relevant to the processing of that specific request. The context usage in our project is explained down below.')
+    st.subheader("Exporting Context Types")
+    code = '''
+            file path ./trpc/trpc.ts
+        
+    import { initTRPC } from '@trpc/server';
+    import { PrismaClient } from '@prisma/client';
+
+    const prisma = new PrismaClient()
+
+    const t = initTRPC.context<{ prisma: {
+            Follower : typeof prisma.follower,
+            Usera : typeof prisma.usera,
+            Post: typeof prisma.post,
+            Like: typeof prisma.like,
+            Comment: typeof prisma.comment,
+    } ; 
+    username?: string; }>().create();
+
+    export const router = t.router;
+    export const publicProcedure = t.procedure;
+    '''
+    st.code(code, language='javascript')
+    st.write('''
+        * The file imports initTRPC from **@trpc/server** and PrismaClient from **@prisma/client**.
+        * It initializes a Prisma client (prisma).
+        * The initTRPC function is used to create a tRPC context with specific Prisma models and an optional username parameter.
+        * The initialized tRPC context (t) is used to create a router (router) and a public procedure (publicProcedure).
+        * The router and procedure are then exported for use in other parts of the application.
+        '''
+             )
+    st.subheader("Exporting Contexts")
+    code = '''
+                file path ./app/api/trpc/[trpc]/route.ts
+
+    import { appRouter } from '@/trpc';
+    import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
+    import { PrismaClient } from "@prisma/client";
+    import providers from "@/components/Providers";
+
+    let prisma = new PrismaClient
+
+    const handler = (req : Request) =>
+        fetchRequestHandler({
+            req,
+            endpoint: '/api/trpc',
+            router: appRouter,
+            createContext: ()=> ({
+                prisma: { 
+                    Usera : prisma.usera , 
+                    Post: prisma.post, 
+                    Follower: prisma.follower, 
+                    Like: prisma.like, Comment: 
+                    prisma.comment}
+        }),
+    });
+
+    export { handler as GET, handler as POST};
+    '''
+    st.code(code, language='javascript')
+    st.write('''
+               * The file imports appRouter from **'@/trpc'**, fetchRequestHandler from **@trpc/server/adapters/fetch**, PrismaClient from **@prisma/client**, and providers from **'@/components/Providers'**.
+               * It initializes a Prisma client (prisma).
+               * The handler function is defined to handle incoming requests. It uses the fetchRequestHandler function to handle requests using the tRPC router (appRouter).
+               * The createContext function is provided to create the context for tRPC, including the Prisma models.
+               * The handler function is exported for both GET and POST requests.
+
+               '''
+             )
+    st.header("Components")
+    code = '''
+               file path ./src/app/layout.tsx
+
+    "use Client";
+    import type { Metadata } from 'next'
+    import { Inter } from 'next/font/google'
+    import './globals.css'
+    import Providers from "@/components/Providers";
+    import {NextAuthProvider} from "@/components/SessionProvider";
+
+    const inter = Inter({ subsets: ['latin'] })
+
+    export const metadata: Metadata = {
+    title: 'Create Next App',
+    description: 'Generated by create next app',
+    }
+
+    export default function RootLayout({
+    children,
+    }: {
+    children: React.ReactNode
+    }) {
+    return (
+        <html lang="en">
+        <body className={inter.className}>
+        <Providers><NextAuthProvider>{children}</NextAuthProvider></Providers>
+        </body>
+        </html>
+    )
+    }
+    '''
+    st.code(code, language='javascript')
+    st.write('Components are important wrappers here that need to be available to all components in the application. By wrapping the entire application with these providers, you ensure that their context is accessible to any component in the component tree.The wrappers in the components directory in this project are explained down below.')
+    st.subheader("Providers")
+    st.write('''
+    The Providers component is responsible for setting up and providing two critical contexts to the application — the trpc (tRPC) client and the react-query QueryClient. It makes use of the trpc.Provider and QueryClientProvider to encapsulate the child components within these contexts.
+    ''')
+    code = '''
+           file path ./components/Providers.tsx
+
+           use client";
+           import {PropsWithChildren, useState} from "react";
+           import {QueryClient} from "@tanstack/query-core";
+           import {trpc} from "@/app/_trpc/client";
+           import {httpBatchLink} from "@trpc/client";
+           import {QueryClientProvider} from "@tanstack/react-query";
+
+           const Providers = ({children}: PropsWithChildren) => {
+           const [queryClient] = useState(() => new QueryClient());
+           const [trpcClient] = useState(() => trpc.createClient({
+               links: [httpBatchLink({
+                   url: "http://localhost:3000/api/trpc"
+               })]
+           }))
+           return <trpc.Provider client={trpcClient} queryClient={queryClient}>
+               <QueryClientProvider client={queryClient}> {children} </QueryClientProvider>
+           </trpc.Provider>
+           }
+
+           export default Providers;
+           '''
+    st.code(code, language='javascript')
+    st.write('''
+    * **QueryClient**: It initializes a QueryClient using useState and provides it to the QueryClientProvider from react-query. This is a common pattern in react-query to manage client-side caching and data fetching.
+    * **tRPC Client (trpc)**: It initializes a trpc client using trpc.createClient and provides it to the trpc.Provider. The trpc client is configured with an HTTP batch link pointing to the tRPC API endpoint (http://localhost:3000/api/trpc). This client is likely used for making remote procedure calls to the server.
+    * **Wrapper Composition**: The child components are wrapped within both the trpc.Provider and QueryClientProvider. This ensures that the entire component tree beneath Providers has access to the configured trpc client and QueryClient.
+    ''')
+    st.subheader("Session Provider")
+    st.write('''
+    The NextAuthProvider component is responsible for setting up the authentication context using next-auth's SessionProvider. It wraps the child components within the authentication context, providing access to session-related information.
+    ''')
+    code = '''
+           file path ./components/SessionProvider.tsx
+
+       "use client"
+       import { SessionProvider } from "next-auth/react"
+       import {ReactNode} from "react";
+       export const NextAuthProvider = ({children} : {children: ReactNode}) => {
+       return(
+           <SessionProvider>
+               {children}
+           </SessionProvider>
+       )}
+       export default SessionProvider
+       '''
+    st.code(code, language='javascript')
+    st.write('''
+    * **SessionProvider**: It uses the SessionProvider from next-auth/react to manage the user's session state. This is a key component for handling authentication state in a Next.js application.
+    * **Wrapper Composition**: The child components are wrapped within the SessionProvider. This ensures that components within this wrapper have access to the current user's session information.
+    ''')
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+def frontend():
+    st.title("Redux for State Management")
+    st.image("https://miro.medium.com/v2/resize:fit:1200/1*8vDTQKhEmn_2_TVZ-u8mQw.jpeg")
+    st.header("Why Redux ?")
+    st.write('''
+    Redux is a predictable state management container for JavaScript applications, primarily used with React but also compatible with other view libraries or frameworks. It provides a centralized and predictable way to manage the state of an application. Here are some reasons why Redux is commonly used for state management:
+
+    * Predictable State Changes:
+    Redux follows a strict unidirectional data flow, making it easier to understand how state changes occur in an application. Actions are dispatched to describe state changes, and these actions are handled by pure functions called reducers, which produce a new state.
+    * Single Source of Truth:
+    In a Redux application, the entire state of the application is stored in a single JavaScript object, often referred to as the "store." This makes it easier to manage and debug the application state since there is only one source of truth.
+    * Centralized State:
+    Having a centralized state makes it easier to manage and reason about the state of the application. Components can access the state directly from the store, eliminating the need to pass state through multiple layers of components.
+    * Debugging Capabilities:
+    Redux provides powerful debugging tools, such as the Redux DevTools extension, which allows developers to inspect state changes, time-travel through actions, and track the application's state at different points in time.
+    ''')
+    st.subheader("Redux Store Setup")
+    code = '''
+                    file path ./app/api/trpc/[trpc]/route.ts
+
+        import { configureStore } from "@reduxjs/toolkit";
+        import counterReducer from "./features/counters/counterSlice";
+        import currentUserReducer from "./features/users/loginUser";
+        import {
+        followerSlice,
+        followingSlice,
+        postSlice,
+        followingDataSlice,
+        followersDataSlice,
+        postDataSlice,
+        } from "./features/users/postPageUser";
+
+         export const makeStore = () => {
+        return configureStore({
+            reducer: {
+            counter: counterReducer,
+            currentUser: currentUserReducer,
+            userFollowers: followerSlice.reducer,
+            userFollowing: followingSlice.reducer,
+            userPost: postSlice.reducer,
+            followingData: followingDataSlice.reducer,
+            followersData: followersDataSlice.reducer,
+            postData: postDataSlice.reducer,
+            },
+        });
+        };
+
+        // This is to infer types of AppStore
+        export type AppStore = ReturnType<typeof makeStore>;
+        // This is to infer types of RootState and AppDispatch types from the store itself
+        export type RootState = ReturnType<AppStore['getState']>;
+        export type AppDispatch = AppStore['dispatch'];
+        '''
+    st.code(code, language='javascript')
+    st.write('''
+    * **makeStore:** This function is creating and configuring the Redux store using configureStore from the **@reduxjs/toolkit**. It combines multiple **reducers** into a single reducer using the reducer property.
+    * **AppStore**, **RootState**, **AppDispatch**: These are TypeScript types inferred from the Redux store to help with type safety when using Redux in your application.
+    ''')
+    st.subheader("Custom Hooks")
+    code = '''
+                        file path ./app/api/trpc/[trpc]/route.ts
+
+            import { useSelector, useDispatch, useStore } from "react-redux";
+            import type { TypedUseSelectorHook } from "react-redux";
+            import type { RootState, AppDispatch, AppStore } from "./store";
+            
+            export const useAppDispatch: () => AppDispatch = useDispatch;
+            export const useAppSelector: TypedUseSelectorHook<RootState> = useSelector;
+            export const useAppStore: () => AppStore = useStore;
+            '''
+    st.code(code, language='javascript')
+    st.write('''
+    * **useAppDispatch**: A custom hook that returns the dispatch function from the Redux store. This hook can be used to **dispatch** actions.
+    * **useAppSelector**: A custom hook that extends the default **useSelector** from React Redux, enforcing strong typing by using **TypedUseSelectorHook** with the **RootState** type.
+    * **useAppStore**: A custom hook that returns the Redux store itself. It can be used to access the store directly, although it's less common than using **useAppDispatch** and **useAppSelector**.
+    ''')
+    st.subheader("Redux Slice")
+    st.write('''
+    This **postDataSlice** will be used in the Redux store to manage the state related to post data. Actions like **userPostData** can be dispatched to update this slice's state, and React components can use **useAppSelector** to access this specific piece of state in a type-safe manner.
+    ''')
+    code = '''
+                            file path ./app/api/trpc/[trpc]/route.ts
+
+                import { createSlice } from "@reduxjs/toolkit";
+                
+                interface postDataType {
+                  id: number;
+                  restaurant: string;
+                  dish: string;
+                  city: string;
+                  caption: string | null;
+                  image: string | null;
+                  location: string | null;
+                  Usera: {
+                    id: number;
+                    email: string;
+                    username: string;
+                    name: string;
+                    password: string;
+                  };
+                }
+                
+                interface PostState {
+                  postData: postDataType[];
+                }
+                
+                const initialPostData: PostState = {
+                  postData: [],
+                };
+                
+                export const postDataSlice = createSlice({
+                  name: "postData",
+                  initialState: initialPostData,
+                  reducers: {
+                    userPostData(state, action) {
+                      state.postData = action.payload;
+                    },
+                  },
+                });
+                '''
+    st.code(code, language='javascript')
+    st.write('''
+    * **postDataType**: An interface defining the structure of the data stored in the **postData** slice.
+    * **PostState**: An interface defining the structure of the state for the **postData** slice.
+    * **initialPostData**: The initial state for the **postData** slice.
+    * **postDataSlice**: A slice created using **createSlice** from **@reduxjs/toolkit**. It includes the slice name, initial state, and reducers. In this case, there's a single reducer **userPostData** that sets the **postData** in the state based on the payload.
+    ''')
+
+
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+def database():
+    st.title("Prisma Usage")
+    st.image("https://velog.velcdn.com/images/jisoung/post/8af95cf3-66ac-42fc-b402-6c47f225f465/image.png", caption='Prisma Logo')
+    st.header("Why prisma as a ORM ?")
+    st.write('''
+    Prisma is an open-source database toolkit and Object-Relational Mapping (ORM) tool that provides a set of tools and abstractions for working with databases in modern web applications. Here are some reasons why developers choose to use Prisma as an ORM:
+
+    * **Type-Safe Query Builder:**
+      Prisma offers a type-safe query builder, meaning that you write your queries using a strongly-typed language (TypeScript in this case), and the compiler catches potential errors at compile-time rather than runtime. This helps reduce the likelihood of runtime errors related to database queries.
+
+    * **Declarative Schema Definition:**
+      With Prisma, you define your database schema using a declarative and readable syntax. This schema serves as the single source of truth for your data model. Prisma Migrate, another component of Prisma, allows you to version-control and evolve your database schema over time.
+
+    * **Auto-Generated Database Client:**
+      Prisma generates a database client based on your schema definition. This client provides a set of methods for interacting with the database in a type-safe manner. These methods are auto-generated and reflect your data model, making it easy to perform CRUD operations without writing raw SQL queries.
+
+    * **Cross-Database Support:**
+      Prisma supports multiple databases, allowing you to switch between databases (e.g., MySQL, PostgreSQL, SQLite) with minimal code changes. This can be beneficial if you need to use different databases for different parts of your application.
+
+    * **Real-Time Data:**
+      Prisma supports real-time data capabilities through subscriptions. This allows you to listen to changes in the database in real-time and push updates to clients when data changes. Real-time functionality is crucial for building modern and interactive applications.
+
+    * **Middleware and Plugins:**
+      Prisma supports middleware and plugins, allowing developers to extend and customize its functionality. This flexibility enables you to add custom business logic or integrate with other tools seamlessly.
+    ''')
+
+    st.header("Why Postgres as a Backend service over others ?")
+    st.write('''
+    PostgreSQL is a popular choice for backend services due to its open-source nature, ACID compliance, and extensibility. With strong community support, it offers a wide range of data types, performance optimization features, and scalability options. Its emphasis on standards compliance and security, along with a vibrant ecosystem, makes PostgreSQL versatile for various applications. However, the selection of a backend service depends on specific project needs, and alternatives like MySQL, MongoDB, or cloud-based solutions may be preferred based on factors such as data structure, scalability, and team expertise.
+    ''')
+
+    st.header("Schema Explanation")
+    st.write('''
+    The schema/models defined for our project are briefly explained down below.
+    ''')
+    st.subheader("Usera Model")
+    code = '''
+                  file path ./prisma/schema.prisma
+
+        model Usera {
+        id             Int        @id @default(autoincrement())
+        email          String     @unique
+        username       String     @unique
+        name           String
+        password       String
+        profilepicture String?
+        bio            String?
+        Posts          Post[]
+        Likes          Like[]
+        Comments       Comment[]
+        Followers      Follower[] @relation("follower")
+        Following      Follower[] @relation("following")
+        }
+    '''
+    st.code(code, language='typescript')
+    st.write('''
+    * Represents a user in the system.
+    * Contains fields such as **id**, **email**, **username**, **name**, **password**, **profilepicture**, **bio**, and relationships with other models (**Posts**, **Likes**, **Comments**, **Followers**, and **Following**).
+    ''')
+    st.subheader("Post Model")
+    code = '''
+                      file path ./prisma/schema.prisma
+
+        model Post {
+        id          Int           @id @default(autoincrement())
+        Usera       Usera         @relation(fields: [userId], references: [id])
+        userId      Int
+        restuarant  String
+        dish        String
+        city        String
+        caption     String?
+        image       String?
+        Location    String?
+        likeCount   Int           @default(0)
+        Likes       Like[]
+        Comments    Comment[]
+        Leaderboard Leaderboard[]
+        }
+        '''
+    st.code(code, language='typescript')
+    st.write('''
+        * Represents a post made by a user.
+        * Contains fields such as **id**, **userId** (foreign key referencing Usera), **restaurant**, **dish**, **city**, **caption**, **image**, **location**, **likeCount**, and relationships with other models (**Likes**, **Comments**, and **Leaderboard**).
+        ''')
+    st.subheader("Follower Model")
+    code = '''
+                          file path ./prisma/schema.prisma
+
+            model Follower {
+            id            Int   @id @default(autoincrement())
+            followerId    Int // Foreign key referencing Usera table
+            followingId   Int // Foreign key referencing Usera table
+            Usera         Usera @relation("follower", fields: [followerId], references: [id])
+            FollowingUser Usera @relation("following", fields: [followingId], references: [id])
+            }
+            '''
+    st.code(code, language='typescript')
+    st.write('''
+        * Represents the relationship between followers and followings.
+        * Contains fields **id**, **followerId**, **followingId**, and relationships with the Usera model.
+            ''')
+    st.subheader("Like Model")
+    code = '''
+                             file path ./prisma/schema.prisma
+
+            model Like {
+            id     Int   @id @default(autoincrement())
+            userId Int // Foreign key referencing Usera table
+            postId Int // Foreign key referencing Post table
+            Usera  Usera @relation(fields: [userId], references: [id])
+            Post   Post  @relation(fields: [postId], references: [id])
+            }
+               '''
+    st.code(code, language='typescript')
+    st.write('''
+            * Represents the likes on a post.
+            * Contains fields **id**, **userId** (foreign key referencing Usera), **postId** (foreign key referencing Post), and relationships with the Usera and Post models.
+               ''')
+    st.subheader("Comment Model")
+    code = '''
+                               file path ./prisma/schema.prisma
+
+            model Comment {
+            id     Int    @id @default(autoincrement())
+            userId Int // Foreign key referencing Usera table
+            postId Int // Foreign key referencing Post table
+            text   String
+            Usera  Usera  @relation(fields: [userId], references: [id])
+            Post   Post   @relation(fields: [postId], references: [id])
+}
+                 '''
+    st.code(code, language='typescript')
+    st.write('''
+            * Represents comments on a post.
+            * Contains fields **id**, **userId** (foreign key referencing Usera), **postId** (foreign key referencing Post), **text**, and relationships with the Usera and Post models.
+                 ''')
+
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+def contribution():
+    st.markdown('<h1 style="color: white;">Contribution Guide</h1>', unsafe_allow_html=True)
+
+    st.image(
+        "https://frosthacks.s3.ap-south-1.amazonaws.com/Website.png",
+        caption="CraveFeed", width=None, )
+
+    st.markdown(
+        """
+        Welcome to the **Contribution Guide** for CraveFeed!
+
+        We're thrilled that you're interested in contributing to our project. 
+        Your contributions make a significant impact, and we appreciate your efforts.
+
+        ## Getting Started
+        Before you start contributing, make sure you have nodejs installed. 
+
+        ## How to Contribute
+        1. **Fork the Repository**: Click the "Fork" button on the top right of the repository page.
+
+        2. **Clone Your Fork**: Clone the repository to your local machine using:
+        ```bash
+        git clone https://github.com/Litomatoma/CraveFeed.git
+        ```
+
+        3. **Set Up Development Environment**: Navigate to the project directory and install dependencies:
+        ```bash
+        npm install
+        ```
+
+        4. **Make Changes**: Create a new branch, make your changes, and commit them.
+
+        5. **Submit a Pull Request**: Push your changes to your fork and submit a pull request.
+
+        We're excited to see your contributions! Thank you for being a part of CraveFeed!
+        """
+    )
+
+    if st.button("Visit Repository"):
+        st.write("Clicking the button will take you to the repository.")
+        st.markdown('<a href="https://github.com/Litomatoma/CraveFeed" target="_blank">Visit Repository</a>',
+                    unsafe_allow_html=True)
+
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+def home():
+    st.title("Welcome to CraveFeed - Explore the World of Food")
+    lottie_file_path = "assets/swipergirl.json"
+    lottie_json = load_lottie_file(lottie_file_path)
+    if lottie_json:
+        streamlit_lottie.st_lottie(lottie_json, speed=1, width=300, height=300, key="key_features_lottie")
+    st.write(
+        "CraveFeed is not just a social media application; it's a culinary journey that revolves around your love for food. "
+        "Connect with food enthusiasts, discover new dishes, and explore the best food destinations worldwide."
+    )
+    st.write(
+        "CraveFeed allows you to follow other users, share your culinary experiences, and get personalized "
+        "food recommendations based on your preferences. Let your taste buds travel the globe with CraveFeed!"
+    )
+    st.header("Key Features")
+    st.write("🌎 **Global Community**: Connect with users around the world who share your passion for food.")
+    st.write("🍔 **Personalized Recommendations**: Receive food and restaurant recommendations tailored just for you.")
+    st.write("👥 **Follow and Be Followed**: Build your foodie network by following other users and food vloggers.")
+    st.write("📷 **Share Your Culinary Adventures**: Post pictures and reviews of your favorite dishes and restaurants.")
+
+    st.header("Recommendations")
+    st.write(
+        "CraveFeed recommends new food items and suggests people to follow based on your culinary preferences. "
+        "Explore a world of flavors and discover dishes you've never tried before!"
+    )
+    st.image("https://frosthacks.s3.ap-south-1.amazonaws.com/CarveFeedFix.jpg", caption="Food Recommendations Collage", use_column_width=True)
+    st.header("TechStack Used")
+    st.write('''
+    Our application architecture boasts a streamlined tech stack for optimal performance. On the backend, trpc, a TypeScript-based remote procedure call framework, ensures type-safe APIs and simplifies server-side development. For frontend state management, we rely on Redux and @reduxjs/toolkit, providing a predictable and centralized solution. The data layer is powered by prisms with PostgreSQL, offering precision in data manipulation and a robust storage solution. This thoughtfully curated stack enhances stability, maintainability, and scalability, ensuring a seamless user experience.    ''')
+    nodes = []
+    edges = []
+    nodes.append(Node(id="CraveFeed",
+                      size=40,
+                      shape="circularImage",
+                      image="https://frosthacks.s3.ap-south-1.amazonaws.com/CraveFeed+Finale.png"))
+    nodes.append(Node(id="NextJS",
+                      size=40,
+                      shape="circularImage",
+                      image="https://w7.pngwing.com/pngs/87/586/png-transparent-next-js-hd-logo.png"))
+    nodes.append(Node(id="Prisma-ORM",
+                      size=40,
+                      shape="circularImage",
+                      image="https://play-lh.googleusercontent.com/qaHOdMYlD_paGwjkNQYOGWtoiT6W8Jvow4wMg0cBbKTiQ9NecxHN_j6zpaoc6vv5syI"))
+    nodes.append(Node(id="TRPC",
+                      size=40,
+                      shape="circularImage",
+                      image="https://trpc.io/img/logo.svg"))
+    nodes.append(Node(id="PostgreSQL",
+                      size=40,
+                      shape="circularImage",
+                      image="https://acte.ltd/_ipx/f_webp,w_800,q_80/https://cms.acte.ltd/storage/app/uploads/public/632/562/dea/632562dead581174193527.png"))
+    nodes.append(Node(id="AmazonS3",
+                      size=40,
+                      shape="circularImage",
+                      image="https://www.wpdownloadmanager.com/wp-content/uploads/2012/12/WordPress-Amazon-S3-Storage-Plugin.png"))
+    nodes.append(Node(id="Redux",
+                      size=40,
+                      shape="circularImage",
+                      image="https://cdn-images-1.medium.com/max/1600/1*Vo5RDpNkOsfDn8sx06mthA.png"))
+    edges.append(Edge(source="NextJS",
+                      label="",
+                      target="CraveFeed",
+                      color="white"))
+    edges.append(Edge(source="AmazonS3",
+                      label="",
+                      target="CraveFeed",
+                      color="white"))
+    edges.append(Edge(source="Prisma-ORM",
+                      label="",
+                      target="CraveFeed",
+                      color="white"))
+    edges.append(Edge(source="TRPC",
+                      label="",
+                      target="CraveFeed",
+                      color="white"))
+    edges.append(Edge(source="PostgreSQL",
+                      label="",
+                      target="Prisma-ORM",
+                      color="white"))
+    edges.append(Edge(source="Redux",
+                      label="",
+                      target="NextJS",
+                      color="white",))
+    config = Config(width=850,
+                    height=500,
+                    directed=True,
+                    physics=True,
+                    hierarchical=True)
+    return_value = agraph(nodes=nodes,
+                          edges=edges,
+                          config=config)
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Set page configuration for red background and white text
+st.set_page_config(
+    page_title="CraveFeed - Explore the World of Food",
+    page_icon="🍔",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+def machine():
+    st.title("Machine Learning")
+    st.write(
+        "In this section, we will attempt to explain the models that seem to be working in the background that brings all those wonderful food recommendations to you."
+)
+
+    st.warning("Obtain the requisite files from our Github repository before proceeding.", icon="⚠️")
+    st.header("Dish Recommendation")
+    st.markdown(
+        """
+        The first step involves the installation of the required packages and dependencies that are required to build such a system.
+        In order for you to start contributing to this project you will require to run the following commmands.
+        ```bash
+        import pandas as pd
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.metrics.pairwise import cosine_similarity
+        ```
+        Now that you have obtained the required packages and libraries, it is time for you to headover to the second step of the process 
+        and that is the step of reading the dataset and obtaining it in the form of a dataframe.
+        ```bash
+        df = pd.read_csv("food_ingredients_and_allergens.csv")
+        ```
+        You should obtain the output in the following format:
+        """
+    )
+    import pandas as pd
+    df = pd.read_csv("food_ingredients_and_allergens.csv")
+    st.markdown(
+        f"""
+            <style>
+                .df {{ text-align: center; }}
+            </style>
+            """
+        , unsafe_allow_html=True
+    )
+    st.dataframe(df)
+    st.subheader("Feature Engineering")
+    st.markdown(
+        """
+        Feature Engineering involves conversion of raw data into a suitable format that is important for machine learning.
+        In the context of our application, it is used to combine various food related that are relevant to the use-case of our application into a single representation.
+        - **Need** : The data which we are using has been classified among the following attributes namely: *Main Ingredients*, *Sweetner*, *Fat/Oil*, *Seasoning*, *Allergens.*
+        - **Data Cleaning and Preprocessing** : We clean the data according to our needs. Some places within the dataframe are empty for example, so we use the following code for cleaning the data.
+            """
+    )
+    code = """
+    import pandas as pd
+
+    # Assuming df is your DataFrame
+    # Replace empty cells with NaN for consistency
+    df.replace('', pd.NA, inplace=True)
+    
+    # Split allergens column where commas are present
+    df['Allergens'] = df['Allergens'].str.split(',')
+    
+    # If you want to handle missing values in other columns as well
+    # You can fill NaN values with an appropriate default value
+    default_value = 'No Information'
+    df.fillna(default_value, inplace=True)
+    
+    # If you want to flatten the allergens column so that each allergen gets its own row
+    df = df.explode('Allergens')
+    
+    # If you want to remove leading and trailing whitespaces
+    df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+    
+    # Optionally, you can drop duplicates if needed
+    df.drop_duplicates(inplace=True)
+    
+    # Reset index after modifications
+    df.reset_index(drop=True, inplace=True)
+    
+    # Display the cleaned DataFrame
+    print(df)
+    """
+    st.code(code,language='python')
+    st.markdown(
+        """
+        - **Aggregation and Combination** : It refers to creation of combination of features such as concatenation of values of *Main Ingredients* and *Sweetner* into a single string represenation. 
+        """
+    )
+    st.subheader('Text Vectorization')
+    st.markdown(
+        """
+        **Text Vectorization**, specifically using the TF-IDF method (*Term Frequency-Inverse Document Frequency*) method,
+        is a technique employed to convert textual data into a numerical format that can be utilized by machine learning
+        algorithms. TF-IDF is particularly useful for representing the importance of individual terms (words) with a 
+        collection of documents. In the context of our application, TF-IDF is applied to convert concatenated feature strings into numerical vectors. Let's break down TF-IDF in detail:
+        """
+    )
+    st.markdown(
+        """
+        **1. Term Frequency (TF):** 
+        - **Definition:** Term Frequency measures how often a term (word) appears in a given document.
+        - **Formula:** """)
+    st.latex(
+        r'IDF(t, D) = \frac{{\text{{Number of times term }} t \text{{ appears in a document }} d}}{{\text{{Total number of terms in document }} d}}')
+    st.markdown(
+        """
+        - **Purpose:**  Emphasizes terms that are frequent within a specific document.
+        """
+    )
+    st.markdown(
+        """
+        **2. Inverse Document Frequency (IDF):**
+        - **Definition:** Inverse Document Frequency measures the importance of a term across a collection of documents.
+        - **Formula:**
+        """
+    )
+    st.latex(
+        r'IDF(t, D) = log\frac{{ \text{{Total number of documents in the corpus N }} }}{{\text{{Number of documents containing term t+1 }} }} + 1''')
+    st.markdown(
+        """
+        - **Purpose:** Penalizes terms that are common across many documents and emphasizes terms that are rare but present in a few documents.
+        """
+    )
+    st.markdown(
+        """
+        **3. TF-IDF Calculation:** 
+        - **TF-IDF Score:** """
+    )
+    st.latex(r'\text{TF-IDF}(t, d, D) = \text{TF}(t, d) \times \text{IDF}(t, D)')
+    st.markdown(
+        """
+        - **Combining TF and IDF:** The TF-IDF score combines the local importance of a term within a document (TF) with its global importance across the entire corpus (IDF).
+        - **Higher Scores:** Words with higher TF-IDF scores are considered more important and distinctive to the specific document.
+        """
+    )
+    st.markdown(
+        """
+        **4. Vectorization Process:**
+        - **TF-IDF Vectorizer:** <br style='line-height: 0.5;'>
+        \t**(i)** In Python, the **'TfidfVectorizer'** class from scikit-learn is commonly used for this purpose. <br style='line-height: 0.5;'>
+        \t**(ii)** It takes a collection of text documents (concatenated feature strings in this case) as input. <br style='line-height: 0.5;'>
+        \t**(iii)** It tokenizes the text, extacts individual terms, and computes TF-IDF scores for each term in each document. <br style='line-height: 0.5;'> 
+        """, unsafe_allow_html=True
+    )
+    code1 = """
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        # Example usage
+        tfidf_vectorizer = TfidfVectorizer(stop_words="english")
+        tfidf_matrix = tfidf_vectorizer.fit_transform(text_documents)
+        """
+    st.code(code1, language="python")
+    st.markdown(
+        """- **Output:** 
+         The resulting **'tfidf_matrix'** is a sparse matrix where each row corresponds to a document (food item in our case), and each column corresponds to a unique term. The matrix contains the TF-IDF scores for each term in each document.
+        """
+    )
+    st.markdown(
+        """
+        **5. Cosine Similarity:** 
+        - **Application:** The TF-IDF vectors are then used to calculate cosine similarity between different food items.
+        - **Similarity Score:** Higher cosine similarity scores indicate greater similarity between the feature representations of two food items.
+        \n
+        By the above implementation, our recommendation system captures the  unique characteristics of each food item, enabling the model to provide relevant recommendations based on the similarity of their feature vectors."""
+    )
+    st.subheader("Confusion Matrix")
+    st.image("assets/confusionmatrix1.png", caption="Cosine Similarity Matrix between Food Items")
+    st.image("assets/confusionmatrix2.png", caption="Focused CS Matrix between Food Items")
+    st.subheader("Integration with Web Application")
+    st.markdown(
+        """
+        Integrating a machine learning (ML) model with a web application using **FastAPI** involves creating an API endpoint
+        that can receive input data from the client, process it through the ML model, and return the results. 
+        **FastAPI** is a modern, fast (high-performance), web framework for building APIs with Python 3.7+ based on standard
+        Python type hints. \n
+        Step-by-step guide for integration with FastAPI:
+        - **Install Required Packages**
+        ```bash
+        pip install fastapi uvicorn
+        ```
+        - **Creation of ML Model**
+        - **Creation of FastAPI Application**
+        ```bash
+        from fastapi import FastAPI
+        app = FastAPI()
+        ```
+        - **Logging**
+        """
+    )
+    code2="""
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.INFO)
+        c_handler = logging.StreamHandler()
+        f_handler = logging.FileHandler("recommendation.log")
+        c_handler.setLevel(logging.INFO)
+        f_handler.setLevel(logging.INFO)
+        c_format = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+        f_format = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        c_handler.setFormatter(c_format)
+        f_handler.setFormatter(f_format)
+        logger.addHandler(c_handler)
+        logger.addHandler(f_handler)
+        """
+    st.code(code2,language="python")
+    st.markdown(
+        """
+        - **API Calls**
+        """
+    )
+    code3="""
+        class Item(BaseModel):
+            user_preferences: str
+            previous_choices: list
+        @app.post("/")
+        async def query(item: Item):
+            recommendations = get_recommendations(
+                item.user_preferences, item.previous_choices, cosine_sim, df
+            )
+            logger.info(
+                f"Recommendations for {item.user_preferences} and {item.previous_choices}: {recommendations}"
+            )
+            return {"recommendations": recommendations}
+    """
+    st.code(code3,language="python")
+    st.markdown(
+        """
+        - **Test the API**
+        ```bash
+        curl -X POST "http://127.0.0.1:8000/predict" -H "Content-Type: application/json" -d '{"feature1": 1.5, "feature2": 2.5}'
+        ```
+        FastAPI documentation provides extensive details and examples for further customization and usage.
+        """
+    )
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+def ImageUpload():
+    st.title("AmazonS3 Usage")
+    st.write("Amazon S3 or Amazon Simple Storage Service is a service offered by Amazon Web Services that provides object storage through a web service interface. Amazon S3 uses the same scalable storage infrastructure that Amazon.com uses to run its e-commerce network.")
+    st.image("https://www.freecodecamp.org/news/content/images/2020/08/Screenshot-2020-08-10-at-6.26.31-PM.png")
+    st.subheader("Why AmazonS3 ?")
+    st.write('''
+        Amazon S3 (Simple Storage Service) is a popular and widely used object storage service, but whether it's the best choice for your specific use case depends on various factors. Here are some reasons why Amazon S3 is often chosen over other storage services:
+
+        * **Scalability**: Amazon S3 is highly scalable, allowing you to store and retrieve any amount of data from anywhere on the web. It is designed to scale both up and down based on your storage needs.
+
+        * **Durability and Reliability**: S3 is designed to provide 99.999999999% (11 9's) durability of objects over a given year. It replicates data across multiple geographically distributed data centers, making it highly reliable.
+
+        * **Security Features**: S3 provides several security features, such as access control lists (ACLs), bucket policies, and fine-grained access control using AWS Identity and Access Management (IAM). You can control who can access your data and how they can access it.
+
+        * **Cost-Effective**: S3 offers a pay-as-you-go pricing model, allowing you to pay only for the storage you use. It also provides various storage classes, such as Standard, Intelligent-Tiering, Glacier, etc., with different costs based on access patterns and retrieval times.
+
+        * **Rich Feature Set**: S3 provides a range of features, including versioning, logging, event notifications, and lifecycle policies, giving you flexibility in managing and controlling your data.
+    ''')
+    st.header("Code Section")
+    st.write('''
+    This code sets up a server using the Express.js framework to handle file uploads and provide pre-signed URLs for file retrieval from Amazon S3. It utilizes the AWS SDK for JavaScript (v3) to interact with S3 services. The server is configured to handle Cross-Origin Resource Sharing (CORS) using the cors middleware. The file upload functionality is implemented using Multer middleware with the multer-s3 storage engine, enabling direct uploads to an S3 bucket with custom metadata and key naming conventions. The server exposes two endpoints: /upload for handling file uploads and /url/{filename} for generating pre-signed URLs for specified files. The pre-signed URLs have a 5-minute expiration time. This code is suitable for creating a backend service that supports secure and efficient file uploads and retrievals in conjunction with an Amazon S3 bucket. Users can upload files, and the server provides signed URLs for accessing those files with controlled access privileges.
+    ''')
+    code = '''
+            const { S3, PutObjectCommand, GetObjectCommand} = require('@aws-sdk/client-s3');
+            const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+            const express = require('express');
+            const multer = require('multer');
+            const multerS3 = require('multer-s3');
+            const cors = require('cors');
+            
+            const app = express();
+            
+            app.use(cors());
+            const s3 = new S3({
+                credentials: {
+                    accessKeyId: "Your AccessKeyId",
+                    secretAccessKey: "Your SecretAccessKey",
+                },
+                region: "Your Region",
+            });
+            
+            
+            const upload = multer({
+                storage: multerS3({
+                    s3: s3,
+                    bucket: "Your Bucket Name",
+                    metadata: function (req, file, cb) {
+                        console.log(file);
+                        cb(null, { fieldName: file.originalname });
+                    },
+                    key: function (req, file, cb) {
+                        const currentDate = new Date();
+                        const formattedDate = currentDate.toISOString().replace(/:/g, '-').split('.')[0];
+                        const modifiedFileName = `${formattedDate}_${file.originalname}`;
+                        cb(null, modifiedFileName);
+                    },
+                }),
+            });
+            
+            app.post('/upload', upload.single('photos'), function (req, res, next) {
+                const imageName = req.file.key;
+                res.send({ data: { imageName }, msg: 'Successfully uploaded ' + imageName + ' file!' });
+            });
+            
+            app.get("/url/:filename", async (req, res) => {
+                const params = { Bucket: "Your Bucket Name", Key: req.params.filename };
+                try {
+                    const signedUrl = await getSignedUrl(s3, new GetObjectCommand(params), { expiresIn: 60 * 5 });
+                    res.send(signedUrl);
+                } catch (error) {
+                    console.error("Error generating signed URL:", error);
+                    res.status(500).send("Error generating signed URL");
+                }
+            });
+            
+            app.listen(4000, function () {          // Specify the port that you want to use
+                console.log('Express is online');
+            });
+               '''
+    st.code(code, language='python')
+    st.write('''
+        1. **Dependencies**:
+            * @aws-sdk/client-s3: AWS SDK for S3 to interact with Amazon S3 services.
+            * @aws-sdk/s3-request-presigner: A utility for generating pre-signed URLs for S3 operations.
+            * express: A web application framework for Node.js.
+            * multer: A middleware for handling multipart/form-data, used here for processing file uploads.
+            * multer-s3: A Multer storage engine for AWS S3.
+        
+        2. **AWS S3 Configuration**:
+            * The AWS S3 client is created with the provided access key, secret key, and region.
+        
+        3. **Express Application Setup**:
+            * An Express application is created.
+            * The cors middleware is used to enable Cross-Origin Resource Sharing, allowing the server to respond to requests from different origins.
+        
+        4. **Multer Configuration**:
+            * Multer is configured to use the S3 storage engine for handling file uploads to the specified S3 bucket.
+            * File metadata is logged, and the file key (name) is modified to include the current date.
+       
+        5. **File Upload Endpoint**:
+            * The /upload endpoint is defined for handling file uploads using the upload Multer middleware.
+            * After a successful upload, the server responds with a JSON object containing the uploaded file's key (imageName) and a success message.
+        
+        6. **Signed URL Generation Endpoint**:
+            * The /url/{filename} endpoint generates a pre-signed URL for the specified file in the S3 bucket.
+            * The URL is generated with a 5-minute expiration time.
+            * If successful, the signed URL is sent as the response; otherwise, an error message is sent.
+        
+        7. **Server Start**:
+            * The Express application is set to listen on port 4000, and a message is logged when the server is online.
+        
+        8. **Explanation of Key AWS SDK Methods**:
+            * getSignedUrl: 
+                This method is used to generate a pre-signed URL for an S3 operation (in this case, retrieving an object with GetObjectCommand).
+            * PutObjectCommand: 
+                Represents the parameters needed for the putObject operation, which uploads an object to an S3 bucket.
+            * GetObjectCommand: 
+                Represents the parameters needed for the getObject operation, which retrieves an object from an S3 bucket.
+    ''')
+
+
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Sidebar navigation
+pages = {
+    "🏠 Home": home,
+    "📱 Frontend": frontend,
+    "🛠️ Backend": backend,
+    "🛢️ Database": database,
+    "🖼️ Image Storage": ImageUpload,
+    "🤖 Machine Learning": machine,
+    "🤝 Contribution": contribution,
+}
+# Streamlit app
+def main():
+    options_list = list(pages.keys())
+    with st.sidebar:
+        selected = option_menu(
+            menu_title="Navigation",
+            options=options_list,
+        )
+    pages[selected]()
+
+    # Display header for other sections
+    #if selected_page == "Home":
+        #header()
+
+if __name__ == "__main__":
+    main()
